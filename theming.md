@@ -30,7 +30,7 @@ A theme is organized as a directory with the following structure:
 /themes/my-theme/
 ├── theme.json              # Theme manifest and global settings schema
 ├── layout.liquid           # Main HTML layout template
-├── screenshot.png          # Preview image for the theme
+├── screenshot.png          # 1280x720 preview image for the theme
 ├── widgets/                # Widget templates
 │   ├── basic-text/         # Each widget in its own folder
 │   │   ├── schema.json     # Widget configuration schema
@@ -61,6 +61,15 @@ A theme is organized as a directory with the following structure:
     └── icons.json          # Icon definitions (optional)
 ```
 
+> [!IMPORTANT] **Absolute Minimum Requirements:** For a theme to be recognized and functional, it MUST contain:
+>
+> - `theme.json`: Manifest with `name`, `version`, and `author`.
+> - `layout.liquid`: The main layout wrapper.
+> - `screenshot.png`: A 1280x720 preview image.
+> - `widgets/`: Directory containing at least one widget.
+> - `templates/`: Directory containing page templates.
+> - `assets/`: Directory for theme assets.
+
 > **Note:** Each widget lives in its own subdirectory containing a `schema.json` (widget configuration) and `widget.liquid` (template). For comprehensive widget authoring guidance, see the [Widget Authoring Guide](theming-widgets.md).
 
 ## 3. Theme Manifest (theme.json)
@@ -75,10 +84,11 @@ The `theme.json` file serves as the theme's manifest and defines global settings
   "version": "1.0.0",
   "description": "A beautiful, responsive theme",
   "author": "Your Name",
-  "widgets": 15,
   "useCoreWidgets": true
 }
 ```
+
+> [!NOTE] The `widgets` count is calculated programmatically by the system based on the contents of the `/widgets/` directory. You do not need to specify it in `theme.json`.
 
 ### Global Settings Schema
 
@@ -501,6 +511,51 @@ The audio filter always returns just the path. You can explicitly use `'path'` o
 ```
 
 All three forms return the same audio file path.
+
+### YouTube Filter
+
+The `youtube` filter parses the data from a `youtube` setting type and renders a responsive YouTube embed.
+
+#### Basic Usage
+
+```liquid
+{{ widget.settings.myYoutubeVideo | youtube }}
+```
+
+#### Custom Class
+
+You can provide a custom CSS class for the wrapper element:
+
+```liquid
+{{ widget.settings.heroVideo | youtube: 'hero-youtube-wrapper' }}
+```
+
+#### Path-Only Mode
+
+If you need only the embed URL (e.g., for use in a custom `<iframe>` or JavaScript), use `'path'` or `'url'` as the first parameter:
+
+```liquid
+{{ widget.settings.introVideo | youtube: 'path' }}
+```
+
+#### Output Structure
+
+By default, the filter outputs a container with a responsive aspect ratio:
+
+```html
+<div
+  class="youtube-embed-wrapper [custom-class]"
+  style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden;"
+>
+  <iframe
+    src="https://www.youtube.com/embed/[videoId]?[options]"
+    style="position:absolute; top:0; left:0; width:100%; height:100%;"
+    frameborder="0"
+    allow="autoplay; encrypted-media"
+    allowfullscreen
+  ></iframe>
+</div>
+```
 
 ### Asset Management Tags
 

@@ -2,6 +2,8 @@
 
 This document serves as a comprehensive index to all documentation in the Widgetizer project. Use this guide to quickly find the appropriate documentation for your needs, whether you're developing, troubleshooting, or understanding system architecture.
 
+---
+
 ## 📚 Core System Documentation
 
 ### **[theming.md](theming.md)** - Theme Development & Structure
