@@ -228,6 +228,20 @@ This document serves as a comprehensive index to all documentation in the Widget
 
 ---
 
+## 🔧 Troubleshooting
+
+### **[troubleshooting-media-race-condition.md](troubleshooting-media-race-condition.md)** - Media Write Race Condition
+
+**Purpose**: Diagnoses and resolves intermittent `ENOENT` errors during media file writes **When to use**:
+
+- Encountering `ENOENT: no such file or directory, rename` errors in media operations
+- Debugging concurrent file access issues during development (hot reload + autosave)
+- Understanding file locking mechanisms and retry strategies
+
+**Key topics**: Race condition analysis, lock order fixes, unique temp files, retry logic with exponential backoff, autosave interaction, development vs production considerations
+
+---
+
 ## 🎯 Quick Reference by Role
 
 ### **Theme Developers**
@@ -274,6 +288,32 @@ Primary docs: `core-themes.md`, `core-page-editor.md` Secondary: `core-media.md`
 - Refactoring code with better documentation
 
 **Key topics**: Comment philosophy, when to comment, explaining complex logic, anti-patterns, best practices
+
+---
+
+## 💻 Desktop Builds
+
+### **[build-windows.md](build-windows.md)** - Windows Portable Build
+
+**Purpose**: Step-by-step guide for creating the portable Windows distribution with system tray app **When to use**:
+
+- Building the Windows desktop version
+- Creating portable Windows distributions
+- Understanding the Windows tray app (C#)
+
+**Key topics**: Build process, portable Node.js, tray app compilation, packaging, distribution
+
+---
+
+### **[build-macos.md](build-macos.md)** - macOS Portable Build
+
+**Purpose**: Step-by-step guide for creating the portable macOS distribution with menu bar app **When to use**:
+
+- Building the macOS desktop version
+- Creating portable macOS distributions
+- Understanding the macOS menu bar app (Swift)
+
+**Key topics**: Build process, portable Node.js, Swift app compilation, .app bundle, packaging, distribution
 
 ---
 

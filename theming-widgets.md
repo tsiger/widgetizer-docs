@@ -106,38 +106,69 @@ Every widget follows this structure:
 | `data-widget-id="{{ widget.id }}"`                    | For JavaScript targeting                                   |
 | `data-widget-type="{widget-name}"`                    | For debugging/identification                               |
 
-### Hero/Banner Pattern
+### Content Flow Spacing
 
-For hero sections, banners, and slideshows, elements render **directly in `.widget-content`** (no `.widget-header` wrapper):
+For widgets with dynamic block ordering (text, headings, buttons), use the **content-flow** pattern for automatic, order-agnostic spacing:
 
 ```liquid
-<div class="widget-content widget-content-lg {% if widget.settings.alignment == 'center' %}widget-content-align-center{% else %}widget-content-align-start{% endif %}">
-  {% if block.settings.heading_text != blank %}
-    <h1 class="widget-headline block-text block-text-5xl block-text-bold block-text-heading">
-      {{ block.settings.heading_text }}
-    </h1>
-  {% endif %}
-  {% if block.settings.text_content != blank %}
-    <p class="widget-description block-text block-text-lg">
-      {{ block.settings.text_content }}
-    </p>
-  {% endif %}
-  {% if block.settings.button_link.text != blank %}
-    <div class="widget-actions">
-      <a href="{{ block.settings.button_link.href }}" class="widget-button widget-button-primary">
-        {{ block.settings.button_link.text }}
-      </a>
-    </div>
-  {% endif %}
+<div class="widget-content content-flow widget-content-lg {% if widget.settings.alignment == 'center' %}widget-content-align-center{% else %}widget-content-align-start{% endif %}">
+  {% for blockId in widget.blocksOrder %}
+    {% assign block = widget.blocks[blockId] %}
+    {% case block.type %}
+      {% when 'heading' %}
+        {% assign size_class = 'block-text-' | append: block.settings.size %}
+        {% if widget.index == 1 %}
+          <h1 class="widget-headline block-text {{ size_class }} block-text-bold block-text-heading">
+            {{ block.settings.text }}
+          </h1>
+        {% else %}
+          <h2 class="widget-headline block-text {{ size_class }} block-text-bold block-text-heading">
+            {{ block.settings.text }}
+          </h2>
+        {% endif %}
+      {% when 'text' %}
+        <p class="widget-description block-text block-text-{{ block.settings.size }}">
+          {{ block.settings.text }}
+        </p>
+      {% when 'button' %}
+        <div class="widget-actions">
+          <a href="#" class="widget-button widget-button-{{ block.settings.size }} widget-button-primary">
+            Button Text
+          </a>
+        </div>
+    {% endcase %}
+  {% endfor %}
 </div>
 ```
 
-**Spacing hierarchy** (use individual margins, not gap):
+**How it works:**
 
-- `.widget-eyebrow`: `margin-block-end: var(--space-md)` (16px)
-- `.widget-headline`: `margin-block-end: var(--space-lg)` (24px)
-- `.widget-description`: `margin-block-end: var(--space-lg)` (24px)
-- `.widget-actions`: `margin-block-start: var(--space-xl)` (32px)
+The `.content-flow` utility class (defined in `base.css`) applies automatic spacing between elements using the **owl selector** (`* + *`):
+
+```css
+/* Defined in base.css */
+.content-flow > * + * {
+  margin-block-start: var(--space-md); /* 16px default */
+}
+```
+
+For widgets that need custom spacing for specific elements (e.g., extra spacing before buttons), you can add widget-specific overrides in your `<style>` block:
+
+```css
+.widget-{{ widget.id }} {
+  /* Custom override for this widget */
+  & .content-flow > .widget-actions:last-child {
+    margin-block-start: var(--space-xl); /* 32px */
+  }
+}
+```
+
+**Benefits:**
+
+- **Order-agnostic**: Works regardless of block order
+- **No manual spacing**: Spacing is automatic based on adjacency
+- **Flexible**: Handles any combination of blocks
+- **Consistent**: Same spacing rules across all widgets
 
 ---
 
@@ -188,10 +219,9 @@ Your theme should define a consistent set of CSS custom properties (design token
 --line-height-normal: 1.5;
 --line-height-relaxed: 1.6;
 
---font-weight-normal: 400;
---font-weight-medium: 500;
---font-weight-semibold: 600;
---font-weight-bold: 700;
+--typography-heading_font-weight: 700;
+--typography-body_font-weight: 400;
+--typography-body_font_bold-weight: 700;
 ```
 
 ### Color Tokens
@@ -393,22 +423,41 @@ These classes are semantic hooks (no default styling) for targeting in CSS:
 
 ### Grid System
 
+The grid utilities are CSS-variable driven for flexible column counts and consistent responsive behavior.
+
 ```liquid
 <div class="widget-grid widget-grid-2">  <!-- 2 columns -->
 <div class="widget-grid widget-grid-3">  <!-- 3 columns -->
 <div class="widget-grid widget-grid-4">  <!-- 4 columns -->
+<div class="widget-grid widget-grid-5">  <!-- 5 columns -->
+```
+
+Or set the desktop column count directly:
+
+```liquid
+<div class="widget-grid" style="--grid-cols-desktop: 4;">
 ```
 
 **Responsive behavior:**
 
 - Mobile (< 750px): 1 column
-- Tablet (750px+): 2 columns (for 3-4 column grids)
-- Desktop (990px+): Full columns
+- Tablet (750px+): 2 columns
+- Desktop (990px+): `--grid-cols-desktop`
+- Large (1200px+): same as desktop
+
+**Gap behavior:**
+
+- `gap` automatically tightens as `--grid-cols-desktop` increases.
+- Override with `--grid-gap` if needed:
+
+```liquid
+<div class="widget-grid" style="--grid-cols-desktop: 4; --grid-gap: var(--space-md);">
+```
 
 ### Card Grid
 
 ```liquid
-<ul class="widget-card-grid">
+<ul class="widget-card-grid widget-grid" style="--grid-cols-desktop: 4;">
   <li class="widget-card">
     <!-- Card content -->
   </li>
@@ -419,8 +468,7 @@ These classes are semantic hooks (no default styling) for targeting in CSS:
 
 - Mobile: 1 column
 - Tablet (750px+): 2 columns
-- Desktop (990px+): 3 columns
-- Large (1200px+): 4 columns
+- Desktop (990px+): `--grid-cols-desktop`
 
 ### Spacing Guidelines
 
@@ -434,49 +482,75 @@ These classes are semantic hooks (no default styling) for targeting in CSS:
 
 ### Color Scheme Classes
 
+Widgets support two color schemes defined in theme settings:
+
 ```liquid
-<!-- Dark background with light text -->
-<section class="widget color-scheme-dark">
-  <!-- Text uses --inverse-text -->
+<!-- Light color scheme (default) -->
+<section class="widget color-scheme-light">
+  <!-- Content -->
 </section>
 
-<!-- Light background (default) -->
-<section class="widget color-scheme-light">
-  <!-- Text uses theme defaults -->
+<!-- Dark color scheme -->
+<section class="widget color-scheme-dark">
+  <!-- Content -->
 </section>
 ```
+
+**Widget-Level Color Scheme Setting:**
+
+Add a color scheme setting to your widget schema:
+
+```json
+{
+  "type": "select",
+  "id": "color_scheme",
+  "label": "Color Scheme",
+  "default": "light",
+  "options": [
+    { "value": "light", "label": "Light" },
+    { "value": "dark", "label": "Dark" }
+  ]
+}
+```
+
+**Widget Template:**
+
+```liquid
+<section
+  class="widget widget-{name} widget-{{ widget.id }} color-scheme-{{ widget.settings.color_scheme }}"
+  {% if widget.settings.color_scheme == 'dark' %}
+    style="--widget-bg-color: var(--bg-primary);"
+  {% endif %}
+>
+  <div class="widget-container {% if widget.settings.color_scheme == 'dark' %}widget-container-padded{% endif %}">
+    <!-- Content -->
+  </div>
+</section>
+```
+
+**How it works:**
+
+1. `color-scheme-{{ widget.settings.color_scheme }}` adds the appropriate class
+2. Dark scheme automatically sets dark background via inline style
+3. `widget-container-padded` adds padding for dark scheme widgets
+4. All text, borders, and accent colors automatically switch based on scheme
 
 ### Background System
 
 #### Widget-Level Background
 
+Color schemes handle the main background, but you can still override with custom backgrounds:
+
 ```liquid
 <section
-  class="widget {% if widget.settings.image != blank %}has-bg-image has-overlay{% elsif widget.settings.background_color != blank %}has-bg-color{% endif %}"
-  {% if widget.settings.image != blank %}
-    style="background-image: url('{{ widget.settings.image | image: 'path', 'large' }}'); --widget-overlay-color: rgba(0,0,0,0.5); --widget-overlay-opacity: 1;"
-  {% elsif widget.settings.background_color != blank %}
-    style="--widget-bg-color: {{ widget.settings.background_color }};"
-  {% endif %}
+  class="widget widget-{name} widget-{{ widget.id }} color-scheme-{{ widget.settings.color_scheme }}"
+  style="--widget-bg-color: {{ widget.settings.background_color }};"
 >
-```
-
-#### Block-Level Background
-
-```liquid
-{% assign item_classes = 'your-item-class block-item' %}
-{% if block.settings.image != blank %}
-  {% assign item_classes = item_classes | append: ' has-bg-image has-overlay' %}
-  {% assign item_style = 'background-image: url(' | append: block.settings.image | image: 'path', 'large' | append: '); --widget-overlay-color: ' | append: block.settings.overlay_color | append: ';' %}
-{% elsif block.settings.background_color != blank %}
-  {% assign item_classes = item_classes | append: ' has-bg-color' %}
-  {% assign item_style = '--widget-bg-color: ' | append: block.settings.background_color | append: ';' %}
-{% endif %}
-
-<div class="{{ item_classes }}" style="{{ item_style }}">
   <!-- Content -->
-</div>
+</section>
 ```
+
+Note: Custom backgrounds override the color scheme background completely.
 
 ---
 
@@ -659,17 +733,152 @@ These will be automatically rendered by `{% header_assets %}` (for styles) and `
 
 ### Settings Order
 
-1. **Content settings** (image, title, description, etc.)
-2. **Layout settings** (columns, alignment, position, etc.)
-3. **Style settings** (gap, size, etc.)
-4. **Background setting** (LAST)
+Use `header` setting types to group related settings. Standard order:
+
+1. **Content settings** (image, title, description, etc.) - Use `content_header`
+2. **Display settings** (layout, alignment, color scheme, playback, options) - Use `display_header`
+3. **Background setting** (LAST) - Usually part of Display section
+
+**Note:** Layout, Style, Playback, and Options settings are typically consolidated under the Display header for consistency.
+
+### Header Setting Types
+
+Use `header` setting types to visually group related settings in the editor UI. Headers improve organization and make settings easier to navigate.
+
+#### Widget-Level Headers
+
+**Standard Header Structure:**
+
+```json
+{
+  "type": "header",
+  "id": "content_header",
+  "label": "Content"
+}
+```
+
+**Common Header Types:**
+
+1. **Content** (`content_header`)
+   - Use for: Text content, images, links, buttons, and other content-related settings
+   - Place at the beginning of content settings
+   - Example: eyebrow, title, description, image, link
+
+2. **Display** (`display_header`)
+   - Use for: Visual appearance and behavior settings
+   - Consolidates: Layout, Style, Playback, Options, and Color Scheme settings
+   - Example: layout, alignment, color_scheme, autoplay, show_volume, show_speed
+
+3. **Layout** (`layout_header`)
+   - Use sparingly: Only when layout settings are distinct from display
+   - Often consolidated into Display section
+   - Example: image_position, week_start_day, layout (cards/bar)
+
+4. **Options** (`options_header`)
+   - Use for: Feature flags, toggles, and option checkboxes
+   - Can be consolidated into Display if appropriate
+   - Example: featured, show_seconds, animate, dietary options (vegetarian, vegan, etc.)
+
+5. **Form** (`form_header`)
+   - Use for: Form-specific settings
+   - Example: form fields, validation settings
+
+6. **Social Media** (`social_header`)
+   - Use for: Social media link settings
+   - Example: linkedin, twitter, instagram, etc.
+
+#### Block-Level Headers
+
+Blocks should also use headers to organize their settings:
+
+**Common Block Header Types:**
+
+1. **Content** (`content_header`)
+   - All content-related block settings (text, images, links)
+
+2. **Layout** (`layout_header`)
+   - Block-specific layout settings (position, span, etc.)
+
+3. **Style** (`style_header`)
+   - Block-specific style settings (color, size, etc.)
+
+4. **Options** (`options_header`)
+   - Block-specific options (featured, closed, etc.)
+
+#### Header Consolidation Rules
+
+**Consolidate into Display:**
+
+- Layout settings → Display (unless layout is a primary widget feature)
+- Playback settings → Display (autoplay, loop, muted, controls)
+- Options settings → Display (show_volume, show_speed, animate, etc.)
+
+**Keep Separate:**
+
+- Content → Always separate (first section)
+- Social Media → Separate if there are many social links
+- Form → Separate if form has many settings
+
+#### Example: Proper Header Organization
+
+```json
+{
+  "settings": [
+    {
+      "type": "header",
+      "id": "content_header",
+      "label": "Content"
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Heading"
+    },
+    {
+      "type": "image",
+      "id": "image",
+      "label": "Image"
+    },
+    {
+      "type": "header",
+      "id": "display_header",
+      "label": "Display"
+    },
+    {
+      "type": "select",
+      "id": "layout",
+      "label": "Layout",
+      "default": "cards"
+    },
+    {
+      "type": "checkbox",
+      "id": "animate",
+      "label": "Animate numbers",
+      "default": true
+    },
+    {
+      "type": "select",
+      "id": "color_scheme",
+      "label": "Color Scheme",
+      "default": "light"
+    }
+  ]
+}
+```
 
 ### Block Settings Order (for items with backgrounds)
 
-1. **Content** (title, text, link)
-2. **Background**: image → overlay_color (with description) → background_color
-3. **Layout** (col_span, row_span, etc.)
-4. **Style** (text_color, alignment)
+Use `header` setting types to organize block settings:
+
+1. **Content** (`content_header`) - title, text, link, image
+2. **Layout** (`layout_header`) - col_span, row_span, position, etc.
+3. **Style** (`style_header`) - text_color, alignment, rating, etc.
+4. **Options** (`options_header`) - featured, closed, dietary options, etc.
+
+**Background settings pattern:**
+
+- Background image → overlay_color (with description) → background_color
+- Usually part of Content or Style section depending on context
 
 ### Background Setting Pattern
 
@@ -742,6 +951,214 @@ These will be automatically rendered by `{% header_assets %}` (for styles) and `
 
 ---
 
+## Standardized Block Types
+
+To ensure consistency across widgets, use these standardized block definitions:
+
+### Heading Block
+
+**Standard sizes**: Large, XL, 2XL, 3XL, 4XL, 5XL
+
+```json
+{
+  "type": "heading",
+  "displayName": "Heading",
+  "settings": [
+    {
+      "type": "text",
+      "id": "text",
+      "label": "Text",
+      "default": "Section Heading"
+    },
+    {
+      "type": "select",
+      "id": "size",
+      "label": "Size",
+      "default": "2xl",
+      "options": [
+        { "value": "lg", "label": "Large" },
+        { "value": "xl", "label": "Extra Large" },
+        { "value": "2xl", "label": "2X Large" },
+        { "value": "3xl", "label": "3X Large" },
+        { "value": "4xl", "label": "4X Large" },
+        { "value": "5xl", "label": "5X Large" }
+      ]
+    }
+  ]
+}
+```
+
+**Template usage:**
+
+```liquid
+{% assign size_class = 'block-text-' | append: block.settings.size %}
+{% if widget.index == 1 %}
+  <h1 class="widget-headline block-text {{ size_class }} block-text-bold block-text-heading">
+    {{ block.settings.text }}
+  </h1>
+{% else %}
+  <h2 class="widget-headline block-text {{ size_class }} block-text-bold block-text-heading">
+    {{ block.settings.text }}
+  </h2>
+{% endif %}
+```
+
+---
+
+### Text Block
+
+**Standard sizes**: Small, Base, Large **Standard options**: Uppercase, Muted color
+
+```json
+{
+  "type": "text",
+  "displayName": "Text",
+  "settings": [
+    {
+      "type": "textarea",
+      "id": "text",
+      "label": "Text",
+      "default": "Add your text content here."
+    },
+    {
+      "type": "select",
+      "id": "size",
+      "label": "Size",
+      "default": "base",
+      "options": [
+        { "value": "sm", "label": "Small" },
+        { "value": "base", "label": "Base" },
+        { "value": "lg", "label": "Large" }
+      ]
+    },
+    {
+      "type": "checkbox",
+      "id": "uppercase",
+      "label": "Uppercase",
+      "default": false
+    },
+    {
+      "type": "checkbox",
+      "id": "muted",
+      "label": "Muted color",
+      "default": false
+    }
+  ]
+}
+```
+
+**Template usage:**
+
+```liquid
+{% assign size_class = 'block-text-' | append: block.settings.size %}
+{% assign style_class = '' %}
+{% if block.settings.uppercase %}{% assign style_class = style_class | append: ' block-text-uppercase' %}{% endif %}
+{% if block.settings.muted %}{% assign style_class = style_class | append: ' block-text-muted' %}{% endif %}
+<p class="widget-description block-text {{ size_class }}{{ style_class }}">
+  {{ block.settings.text }}
+</p>
+```
+
+---
+
+### Button Block
+
+**Display name**: "Button Group" (for 2 buttons) or "Button" (for 1 button) **Standard sizes**: Small, Medium, Large, Extra Large
+
+```json
+{
+  "type": "button",
+  "displayName": "Button Group",
+  "settings": [
+    {
+      "type": "link",
+      "id": "link",
+      "label": "Button 1",
+      "default": {
+        "text": "Learn More",
+        "href": "#",
+        "target": "_self"
+      }
+    },
+    {
+      "type": "select",
+      "id": "style",
+      "label": "Button 1 style",
+      "default": "secondary",
+      "options": [
+        { "value": "primary", "label": "Primary" },
+        { "value": "secondary", "label": "Secondary" }
+      ]
+    },
+    {
+      "type": "link",
+      "id": "link_2",
+      "label": "Button 2"
+    },
+    {
+      "type": "select",
+      "id": "style_2",
+      "label": "Button 2 style",
+      "default": "secondary",
+      "options": [
+        { "value": "primary", "label": "Primary" },
+        { "value": "secondary", "label": "Secondary" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "size",
+      "label": "Button size",
+      "default": "medium",
+      "options": [
+        { "value": "small", "label": "Small" },
+        { "value": "medium", "label": "Medium" },
+        { "value": "large", "label": "Large" },
+        { "value": "xlarge", "label": "Extra Large" }
+      ]
+    }
+  ]
+}
+```
+
+**Template usage:**
+
+```liquid
+{% assign size_class = '' %}
+{% if block.settings.size == 'medium' %}{% assign size_class = 'widget-button-medium' %}
+{% elsif block.settings.size == 'large' %}{% assign size_class = 'widget-button-large' %}
+{% elsif block.settings.size == 'xlarge' %}{% assign size_class = 'widget-button-xlarge' %}
+{% endif %}
+
+<div class="widget-actions">
+  {% if block.settings.link.text != blank %}
+    <a
+      href="{{ block.settings.link.href }}"
+      class="widget-button {{ size_class }} {% if block.settings.style == 'primary' %}widget-button-primary{% else %}widget-button-secondary{% endif %}"
+    >
+      {{ block.settings.link.text }}
+    </a>
+  {% endif %}
+  {% if block.settings.link_2.text != blank %}
+    <a
+      href="{{ block.settings.link_2.href }}"
+      class="widget-button {{ size_class }} {% if block.settings.style_2 == 'primary' %}widget-button-primary{% else %}widget-button-secondary{% endif %}"
+    >
+      {{ block.settings.link_2.text }}
+    </a>
+  {% endif %}
+</div>
+```
+
+**Button size reference:**
+
+- **Small** (default): `padding: 0.8rem 1.6rem; font-size: sm`
+- **Medium**: `padding: 1.2rem 2.4rem; font-size: base`
+- **Large**: `padding: 1.6rem 3.2rem; font-size: lg`
+- **Extra Large**: `padding: 2rem 4.8rem; font-size: xl`
+
+---
+
 ## Accessibility
 
 ### Required Attributes
@@ -775,7 +1192,47 @@ Ensure all interactive elements work with:
 
 ### Semantic HTML
 
-- Use proper heading hierarchy (`h2` for widget title, `h3` for items)
+**Heading Hierarchy Rules:**
+
+All widgets must follow this strict heading hierarchy for SEO and accessibility:
+
+1. **Widget Title (if `widget.settings.title` exists)**:
+   - `widget.index == 1` → `<h1>`
+   - `widget.index != 1` → `<h2>`
+
+2. **Block/Item Headings**:
+   - **If widget has a title**:
+     - `widget.index == 1` → Items use `<h2>`
+     - `widget.index != 1` → Items use `<h3>`
+   - **If widget has NO title**:
+     - `widget.index == 1` → First item `<h1>`, others `<h2>`
+     - `widget.index != 1` → All items `<h2>`
+
+Example implementation:
+
+```liquid
+{%- comment -%} Widget header {%- endcomment -%}
+{% if widget.settings.title != blank %}
+  {% if widget.index == 1 %}
+    <h1 class="widget-headline">{{ widget.settings.title }}</h1>
+  {% else %}
+    <h2 class="widget-headline">{{ widget.settings.title }}</h2>
+  {% endif %}
+{% endif %}
+
+{%- comment -%} Item headings {%- endcomment -%}
+{% assign item_heading_level = 'h3' %}
+{% if widget.settings.title == blank %}
+  {% assign item_heading_level = 'h2' %}
+{% endif %}
+
+{% for item in items %}
+  <{{ item_heading_level }} class="item-title">{{ item.title }}</{{ item_heading_level }}>
+{% endfor %}
+```
+
+**Other Semantic Requirements:**
+
 - Use semantic elements (`<nav>`, `<main>`, `<article>`, `<section>`)
 - Use `<button>` for actions, `<a>` for navigation
 
@@ -874,6 +1331,9 @@ Before submitting a widget:
 
 - [ ] Both `schema.json` and `widget.liquid` created in `widgets/{name}/`
 - [ ] Standard section settings (eyebrow, title, description) included
+- [ ] Settings organized with `header` types (Content, Display, etc.)
+- [ ] Layout/Playback/Options consolidated under Display header when appropriate
+- [ ] Block settings organized with appropriate headers (Content, Layout, Style, Options)
 - [ ] Default blocks provided with meaningful content
 - [ ] All CSS scoped with `.widget-{{ widget.id }}`
 - [ ] Logical properties used (not `left`, `right`, etc.)

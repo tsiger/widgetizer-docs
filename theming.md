@@ -341,6 +341,8 @@ Widgetizer provides powerful Liquid filters to simplify common tasks in your tem
 
 The `image` filter is the recommended way to render images in your theme. It automatically handles generating the correct `src` for different image sizes, adds important attributes like `width`, `height`, and `alt`, and enables lazy loading by default.
 
+**SVG behavior:** SVGs always render from the original file (no size variants). The `size` parameter is ignored for SVGs, and `width`/`height` attributes are omitted. In path-only mode, SVGs always return the original file path.
+
 #### Basic Usage
 
 ```liquid
@@ -760,8 +762,8 @@ Directly includes CSS, JavaScript, or image assets in your templates. Unlike `en
 
 Assets are loaded from different directories based on context:
 
-- **When used in a widget template**: Loads from `data/projects/{projectId}/widgets/{filename}`
-- **When used elsewhere (layout, snippets)**: Loads from `data/projects/{projectId}/assets/{filename}`
+- **When used in a widget template**: Loads from `data/projects/{folderName}/widgets/{filename}`
+- **When used elsewhere (layout, snippets)**: Loads from `data/projects/{folderName}/assets/{filename}`
 
 **Output:**
 
@@ -1410,8 +1412,8 @@ Alternatively, access theme settings directly in your Liquid templates:
 
 ```liquid
 <div style="
-  background-color: {{ theme.colors.background }};
-  font-size: {{ theme.typography.base_font_size }}px;
+  background-color: var(--bg-primary);
+  font-size: {{ theme.typography.body_font_size }}px;
   {% if theme.layout.site_width == 'wide' %}max-width: 1400px;{% endif %}
 ">
   Content here
@@ -1481,7 +1483,7 @@ This theming system provides a powerful and flexible foundation for creating bea
 
 When a new project is created, the selected theme is copied into the project's data directory so it can be customized independently of the source theme:
 
-- **Destination**: `/data/projects/<projectId>/`
+- **Destination**: `/data/projects/<folderName>/`
 - **Copied items**: `layout.liquid`, `templates/`, `widgets/`, `assets/`, and `menus/`
 
 After this copy, edits in the project affect only that project's files and do not modify the original theme in `/themes/`.
