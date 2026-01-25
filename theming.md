@@ -244,6 +244,8 @@ The `layout.liquid` file defines the main HTML structure that wraps all page con
     {% asset "base.css" %}      <!-- Load theme CSS -->
     {% header_assets %}         <!-- Render enqueued header styles and scripts (sorted by priority) -->
     {% theme_settings %}        <!-- Output CSS variables from global settings -->
+    {% custom_css %}            <!-- Custom CSS from theme settings (optional) -->
+    {% custom_head_scripts %}   <!-- Custom scripts for head (e.g., Google Analytics) (optional) -->
 </head>
 <body class="{{ body_class }}">
     {{ header }}                <!-- Global header widget -->
@@ -256,6 +258,7 @@ The `layout.liquid` file defines the main HTML structure that wraps all page con
 
     {% asset "scripts.js" %}
     {% footer_assets %}         <!-- Render enqueued footer styles and scripts (sorted by priority) -->
+    {% custom_footer_scripts %} <!-- Custom scripts before closing body tag (optional) -->
 </body>
 </html>
 ```
@@ -268,6 +271,9 @@ The `layout.liquid` file defines the main HTML structure that wraps all page con
 - `{% header_assets %}`: Renders all enqueued CSS and JS files marked for header, sorted by priority
 - `{% footer_assets %}`: Renders all enqueued CSS and JS files marked for footer, sorted by priority
 - `{% theme_settings %}`: Outputs CSS custom properties from global settings as `<style>` tags in the document head
+- `{% custom_css %}`: Outputs custom CSS from theme settings wrapped in a `<style>` tag. Should be placed in the `<head>` section.
+- `{% custom_head_scripts %}`: Outputs custom scripts from theme settings as raw HTML. Should be placed in the `<head>` section (e.g., for Google Analytics).
+- `{% custom_footer_scripts %}`: Outputs custom scripts from theme settings as raw HTML. Should be placed before the closing `</body>` tag.
 - `{{ header }}`: Renders the global header widget
 - `{{ main_content }}`: The insertion point for page content (widgets)
 - `{{ footer }}`: Renders the global footer widget
@@ -563,6 +569,16 @@ By default, the filter outputs a container with a responsive aspect ratio:
 
 These tags allow for efficient, deduplicated loading of assets (CSS and JS) in your theme with fine-grained control over placement and loading order. They are particularly useful when multiple widgets might require the same library (e.g., a slider plugin), ensuring it is only loaded once.
 
+**Asset Resolution:**
+
+- **Inside widget templates**: `enqueue_*` loads assets from the widget's folder (`widgets/{widget-name}/`)
+- **Inside `layout.liquid` or snippets**: `enqueue_*` loads assets from the theme `assets/` folder
+
+> [!IMPORTANT]
+> **Asset Filename Collisions During Export**
+>
+> During export, all widget CSS and JS files are flattened into a single `assets/` folder. If two different widgets have files with the same name (e.g., both have `styles.css`), **the last one copied will overwrite the first**. Use unique, widget-prefixed filenames (e.g., `slideshow.css`, `accordion.js`) to avoid collisions.
+
 #### Enqueue Script
 
 Registers a JavaScript file for loading. By default, scripts are output in the footer, but you can specify header placement.
@@ -760,10 +776,12 @@ Directly includes CSS, JavaScript, or image assets in your templates. Unlike `en
 
 **File Location:**
 
-Assets are loaded from different directories based on context:
+Assets are loaded from different directories based on where the tag is used:
 
-- **When used in a widget template**: Loads from `data/projects/{folderName}/widgets/{filename}`
-- **When used elsewhere (layout, snippets)**: Loads from `data/projects/{folderName}/assets/{filename}`
+- **Inside a widget template** (e.g., `widgets/slideshow/widget.liquid`): Loads from that widget's folder (`widgets/{widgetType}/`)
+- **Inside layout or snippets**: Loads from the theme `assets/` folder
+
+This means `{% asset "styles.css" %}` in the slideshow widget loads from `widgets/slideshow/styles.css`, while the same tag in `layout.liquid` loads from `assets/styles.css`.
 
 **Output:**
 
@@ -786,10 +804,21 @@ Assets are loaded from different directories based on context:
   {% asset "analytics.js", { "async": true } %}
 </body>
 
-{# In widget template - loads from widgets/ folder #}
-{% asset "widget-specific.css" %}
-{% asset "widget-script.js", { "defer": true } %}
+{# In widgets/slideshow/widget.liquid - loads from widgets/slideshow/ folder #}
+{% asset "slideshow.css" %}
+{% asset "slideshow.js", { "defer": true } %}
 ```
+
+**Asset Tag vs Enqueue Tags:**
+
+| Feature | `{% asset %}` | `{% enqueue_* %}` |
+| :------ | :------------ | :---------------- |
+| Output location | Inline where placed | Via `{% header_assets %}` / `{% footer_assets %}` |
+| Deduplication | No (outputs every time) | Yes (same filename only loaded once) |
+| Priority control | No | Yes (`priority` option) |
+| Best for | Core theme assets in layout | Widget assets, shared libraries |
+
+Use `{% asset %}` for essential theme assets that must load in a specific order (like `base.css`). Use `{% enqueue_* %}` for widget assets and shared libraries where deduplication matters.
 
 #### Placeholder Image
 
@@ -1376,25 +1405,115 @@ Widget-specific CSS and JavaScript are typically **inline** within the `widget.l
 </section>
 ```
 
-For complex widgets that need shared scripts (like sliders or carousels), place reusable assets in the `assets/` folder and enqueue them:
+For complex widgets that need shared scripts (like sliders or carousels), place reusable assets in `widgets/{widget-name}/` and enqueue them:
 
 ```liquid
 {% enqueue_style "slideshow.css", { "priority": 30 } %}
 {% enqueue_script "slideshow.js", { "priority": 30 } %}
 ```
 
-These will be automatically rendered by `{% header_assets %}` (for styles) and `{% footer_assets %}` (for scripts) in your layout template, sorted by priority.
+These will be automatically rendered by `{% header_assets %}` (for styles) and `{% footer_assets %}` (for scripts) in your layout template, sorted by priority. When `enqueue_*` is called from a widget template, assets are loaded from that widget’s folder. When `enqueue_*` is called from `layout.liquid` or snippets, assets are loaded from the theme `assets/` folder.
 
 ### Assets During Export
 
 When exporting a project to static HTML:
 
 - **Theme Assets**: All files from `/assets/` are copied to the output directory
-- **Widget Assets**: All `.css` and `.js` files found in the `/widgets/` directory are copied to the output `/assets/` directory
+- **Widget Assets**: All `.css` and `.js` files found in the `/widgets/` directory are **flattened** into the output `/assets/` directory
 - **Uploaded Images**: All images from `/uploads/images/` are copied to maintain relative paths
 - **Path Optimization**: Asset paths are converted to relative URLs for optimal static hosting
 
+> [!WARNING]
+> Because widget assets are flattened during export, files with the same name from different widgets will collide. Always use unique, widget-prefixed filenames (e.g., `slideshow.css` instead of `styles.css`).
+
 ## 11. Advanced Features
+
+### Scroll Reveal Animations
+
+The Arch theme includes a scroll reveal animation system that animates elements as they enter the viewport. This system respects user preferences for reduced motion and can be toggled on/off via theme settings.
+
+#### How It Works
+
+1. **CSS Classes**: Elements with the `.reveal` class start hidden (`opacity: 0`) and become visible when the `.revealed` class is added
+2. **JavaScript Observer**: The `reveal.js` script uses Intersection Observer to detect when elements enter the viewport
+3. **Theme Setting**: Users can enable/disable animations via the "Enable scroll reveal animations" setting in Theme Settings > Animations
+
+#### Available Animation Classes
+
+Add these classes to elements you want to animate:
+
+| Class | Effect |
+| :---- | :----- |
+| `.reveal` | Base class (required) - fades in |
+| `.reveal-up` | Slides up while fading in |
+| `.reveal-down` | Slides down while fading in |
+| `.reveal-left` | Slides from right to left while fading in |
+| `.reveal-right` | Slides from left to right while fading in |
+| `.reveal-scale` | Scales up from 95% while fading in |
+| `.reveal-fade` | Simple fade in (no transform) |
+
+#### Stagger Delays
+
+Use the `--reveal-delay` CSS variable to create staggered animations:
+
+```liquid
+{% for blockId in widget.blocksOrder %}
+  {% assign block = widget.blocks[blockId] %}
+  <div class="item reveal reveal-up" style="--reveal-delay: {{ forloop.index0 }}">
+    {{ block.settings.text }}
+  </div>
+{% endfor %}
+```
+
+Each increment of `--reveal-delay` adds 0.1s to the animation delay.
+
+#### Implementation in layout.liquid
+
+The animation system requires two parts in `layout.liquid`:
+
+**1. CSS Override (in `<head>`)** - When animations are disabled, ensure elements remain visible:
+
+```liquid
+{% unless theme.layout.enable_reveal_animations %}
+  <style>.reveal { opacity: 1 !important; transform: none !important; }</style>
+{% endunless %}
+```
+
+**2. Script Loading (in footer)** - Only load the animation script when enabled:
+
+```liquid
+{% if theme.layout.enable_reveal_animations %}
+  {% enqueue_script "reveal.js", { "priority": 50 } %}
+{% endif %}
+```
+
+#### Theme Setting Definition
+
+Add this to your `theme.json` under `settings.global`:
+
+```json
+"layout": [
+  {
+    "type": "header",
+    "id": "layout_header",
+    "label": "Animations"
+  },
+  {
+    "type": "checkbox",
+    "id": "enable_reveal_animations",
+    "label": "Enable scroll reveal animations",
+    "default": true,
+    "description": "Animate elements as they scroll into view"
+  }
+]
+```
+
+#### Accessibility
+
+The animation system automatically respects the user's `prefers-reduced-motion` preference:
+
+- **CSS**: Media query sets `.reveal` elements to visible with no transitions
+- **JavaScript**: Immediately adds `.revealed` class to all elements without animation
 
 ### Responsive Design
 
@@ -1459,6 +1578,128 @@ strong, b {
   font-weight: var(--typography-body_font_bold-weight, 700);
 }
 ```
+
+### Advanced Settings
+
+For advanced users who need to inject custom CSS or JavaScript, the theme system provides three special settings in the `advanced` group:
+
+- **Custom CSS** (`custom_css`): Add custom CSS that will be wrapped in a `<style>` tag
+- **Custom Head Scripts** (`custom_head_scripts`): Add raw HTML/JavaScript for the `<head>` section (e.g., Google Analytics)
+- **Custom Footer Scripts** (`custom_footer_scripts`): Add raw HTML/JavaScript before the closing `</body>` tag
+
+#### Usage in layout.liquid
+
+Theme authors can add these tags anywhere in their `layout.liquid` template:
+
+```liquid
+<head>
+  <!-- ... other head content ... -->
+  {% theme_settings %}
+  {% custom_css %}              <!-- Outputs custom CSS in <style> tag -->
+  {% custom_head_scripts %}     <!-- Outputs raw HTML (e.g., Google Analytics) -->
+</head>
+<body>
+  <!-- ... page content ... -->
+  {% custom_footer_scripts %}   <!-- Outputs raw HTML before </body> -->
+</body>
+```
+
+#### Example: Google Analytics
+
+Users can paste their Google Analytics code into the "Custom Head Scripts" setting:
+
+```html
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'GA_MEASUREMENT_ID');
+</script>
+```
+
+The `{% custom_head_scripts %}` tag will output this code exactly as entered.
+
+#### Example: Custom CSS
+
+Users can add custom CSS that overrides or extends theme styles:
+
+```css
+/* Custom button styling */
+.btn-custom {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50px;
+  padding: 12px 30px;
+}
+
+/* Hide specific elements */
+.hide-on-mobile {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .hide-on-mobile {
+    display: block;
+  }
+}
+```
+
+The `{% custom_css %}` tag will wrap this in a `<style id="custom-theme-css">` tag.
+
+#### Security Considerations
+
+**Important:** These settings accept raw HTML, CSS, and JavaScript without sanitization. This provides maximum flexibility but requires careful use:
+
+- Only paste code from trusted sources
+- Verify the integrity of third-party scripts before adding them
+- Regularly audit custom code to ensure it hasn't been modified
+- Be aware that malicious code can steal user data, perform unauthorized actions, or compromise site security
+
+For detailed security information, see the [Platform Security](core-security.md) documentation.
+
+#### Theme Author Implementation
+
+To enable these features in your theme, add the `advanced` settings group to your `theme.json`:
+
+```json
+{
+  "settings": {
+    "global": {
+      "advanced": [
+        {
+          "type": "header",
+          "id": "advanced_header",
+          "label": "Advanced"
+        },
+        {
+          "type": "textarea",
+          "id": "custom_css",
+          "label": "Custom CSS",
+          "description": "Add custom CSS that will be injected in the <head> section. Use the {% custom_css %} tag in your layout.liquid to render it.",
+          "default": ""
+        },
+        {
+          "type": "textarea",
+          "id": "custom_head_scripts",
+          "label": "Custom Head Scripts",
+          "description": "Add custom scripts (e.g., Google Analytics) that will be injected in the <head> section. Use the {% custom_head_scripts %} tag in your layout.liquid to render them.",
+          "default": ""
+        },
+        {
+          "type": "textarea",
+          "id": "custom_footer_scripts",
+          "label": "Custom Footer Scripts",
+          "description": "Add custom scripts that will be injected before the closing </body> tag. Use the {% custom_footer_scripts %} tag in your layout.liquid to render them.",
+          "default": ""
+        }
+      ]
+    }
+  }
+}
+```
+
+Then add the corresponding tags in your `layout.liquid` where you want the content to appear.
 
 ## 13. Theme Development Workflow
 
